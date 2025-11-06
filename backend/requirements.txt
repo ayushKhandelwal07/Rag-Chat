@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+python-multipart
+pydantic
+docling
+chromadb
+sentence-transformers
+langchain
+httpx
+python-dotenv
