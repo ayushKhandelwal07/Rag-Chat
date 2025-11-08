@@ -1,6 +1,6 @@
 import chromadb
-from typing import List, Dict, Any
-import uuid
+from typing import List, Dict
+import time
 
 _client = chromadb.PersistentClient(path="./chroma_db")
 
@@ -12,9 +12,11 @@ def get_collection(session_id: str):
     )
 
 def store_chunks(session_id: str, chunks: List[str], embeddings: List[List[float]], metadata: List[Dict]):
-    """Store chunks for a session"""
+    """Store chunks for a session (appends to existing chunks)"""
     collection = get_collection(session_id)
-    ids = [f"{session_id}_{i}" for i in range(len(chunks))]
+    # Generate unique IDs to avoid conflicts when appending multiple PDFs
+    base_id = f"{session_id}_{int(time.time() * 1000000)}"
+    ids = [f"{base_id}_{i}" for i in range(len(chunks))]
     collection.add(ids=ids, embeddings=embeddings, documents=chunks, metadatas=metadata)
 
 def query_chunks(session_id: str, query_embedding: List[float], top_k: int = 5) -> Dict:

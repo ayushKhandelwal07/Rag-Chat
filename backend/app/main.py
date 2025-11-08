@@ -26,12 +26,15 @@ async def health():
     return {"status": "ok"}
 
 @app.post("/api/upload", response_model=UploadResponse)
-async def upload_file(file: UploadFile = File(...)):
-    """Upload PDF - creates new session"""
+async def upload_file(file: UploadFile = File(...), session_id: str = None):
+    """Upload PDF - creates new session or adds to existing session"""
     if not file.filename.endswith('.pdf'):
         raise HTTPException(status_code=400, detail="Only PDF files allowed")
     
-    session_id = str(uuid.uuid4())
+    # Use existing session_id or create new one
+    if not session_id:
+        session_id = str(uuid.uuid4())
+    
     temp_path = None
     
     try:
@@ -40,7 +43,7 @@ async def upload_file(file: UploadFile = File(...)):
             tmp.write(await file.read())
         
         extracted = process_pdf(temp_path)
-        process_document(session_id, extracted["text"], extracted["filename"])
+        process_document(session_id, extracted["text"], file.filename)
         
         return UploadResponse(success=True, session_id=session_id)
     except Exception as e:

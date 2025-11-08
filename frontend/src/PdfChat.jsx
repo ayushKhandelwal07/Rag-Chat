@@ -30,47 +30,71 @@ export default function PDFChatApp() {
 
 		setError(null)
 
-		// Only take the first PDF file
-		const selectedFile = pdfFiles[0]
+		// Track successful uploads
+		let successCount = 0
+		let failCount = 0
 
-		// Replace existing PDFs with the new on 
-		const newPDF = {
-			id: Date.now() + Math.random(),
-			name: selectedFile.name,
-			size: (selectedFile.size / 1024).toFixed(2) + ' KB'
-		}
-		setUploadedPDFs([newPDF])
-
-		// Inform user
-		setMessages(prev => [...prev, {
-			role: 'system',
-			content: `Uploading PDF: ${selectedFile.name}`
-		}])
-
-		// Send the file to backend
-		const form = new FormData()
-		form.append('file', selectedFile)
-		try {
-			const res = await fetch('/api/upload', {
-				method: 'POST',
-				body: form
-			})
-			if (!res.ok) {
-				const err = await res.json().catch(() => ({}))
-				throw new Error(err.detail || `Upload failed (${res.status})`)
+		// Process all selected PDF files
+		for (const selectedFile of pdfFiles) {
+			// Add to uploaded PDFs list
+			const newPDF = {
+				id: Date.now() + Math.random(),
+				name: selectedFile.name,
+				size: (selectedFile.size / 1024).toFixed(2) + ' KB'
 			}
-			const data = await res.json()
-			setSessionId(data.session_id)
-			// allow re-selecting the same file later by clearing the hidden input
-			if (fileInputRef.current) fileInputRef.current.value = ''
+			setUploadedPDFs(prev => [...prev, newPDF])
+
+			// Inform user
+			setMessages(prev => [...prev, {
+				role: 'system',
+				content: `Uploading PDF: ${selectedFile.name}...`
+			}])
+
+			// Send the file to backend with existing session_id as query parameter
+			const form = new FormData()
+			form.append('file', selectedFile)
 			
-			// Brief success note so users know they can start chatting
-			setMessages(prev => [...prev, { role: 'system', content: 'Upload successful — you can chat with the PDF now.' }])
-		} catch (err) {
-			setError(err.message)
-			setMessages(prev => [...prev, { role: 'system', content: `Upload error for ${selectedFile.name}: ${err.message}` }])
-			// Clear the PDF from state if upload failed
-			setUploadedPDFs([])
+			// Build URL with session_id as query parameter if it exists
+			const url = sessionId ? `/api/upload?session_id=${sessionId}` : '/api/upload'
+			
+			try {
+				const res = await fetch(url, {
+					method: 'POST',
+					body: form
+				})
+				if (!res.ok) {
+					const err = await res.json().catch(() => ({}))
+					throw new Error(err.detail || `Upload failed (${res.status})`)
+				}
+				const data = await res.json()
+				setSessionId(data.session_id) // Store session_id for subsequent uploads
+				
+				setMessages(prev => [...prev, { 
+					role: 'system', 
+					content: `✓ ${selectedFile.name} uploaded successfully` 
+				}])
+				successCount++
+			} catch (err) {
+				setError(err.message)
+				setMessages(prev => [...prev, { 
+					role: 'system', 
+					content: `Upload error for ${selectedFile.name}: ${err.message}` 
+				}])
+				// Remove the PDF from state if upload failed
+				setUploadedPDFs(prev => prev.filter(pdf => pdf.id !== newPDF.id))
+				failCount++
+			}
+		}
+		
+		// Clear file input to allow re-selecting the same files
+		if (fileInputRef.current) fileInputRef.current.value = ''
+		
+		// Show summary message only if at least one upload succeeded
+		if (successCount > 0) {
+			setMessages(prev => [...prev, { 
+				role: 'system', 
+				content: `${successCount} PDF(s) uploaded successfully. ${failCount > 0 ? `${failCount} failed.` : 'You can now chat with your documents.'}` 
+			}])
 		}
 	}
 
@@ -103,9 +127,6 @@ export default function PDFChatApp() {
 				throw new Error(err.detail || `Chat failed (${res.status})`)
 			}
 			const data = await res.json()
-			// const sourcesText = (Array.isArray(data.sources) && data.sources.length > 0)
-			// 	? `\n\nSources:\n${data.sources.map((s) => `- ${s.source ?? 'document'} (chunk ${s.chunk_id ?? '-'})`).join('\n')}`
-			// 	: ''
 			const botMessage = { role: 'assistant', content: `${data.answer}` }
 			setMessages(prev => [...prev, botMessage])
 		} catch (err) {
@@ -162,7 +183,6 @@ export default function PDFChatApp() {
 											</div>
 										)}
 										<p className="whitespace-pre-wrap text-sm leading-relaxed">{msg.content}</p>
-										{console.log(msg.content)}
 									</div>
 								</div>
 							))}
@@ -215,14 +235,14 @@ export default function PDFChatApp() {
 							accept=".pdf"
 							onChange={handleFileUpload}
 							className="hidden"
-							multiple={false}
+							multiple={true}
 							/>
 						<button
 							onClick={() => fileInputRef.current?.click()}
 							className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors text-sm font-medium"
 						>
 							<Upload size={18} />
-							Upload PDF
+							Upload PDF(s)
 						</button>
 					</div>
 
@@ -233,7 +253,7 @@ export default function PDFChatApp() {
 							value={input}
 							onChange={(e) => setInput(e.target.value)}
 							onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-							placeholder={!sessionId ? "Upload a PDF first..." : "Ask a question about your PDFs..."}
+							placeholder={!sessionId ? "Upload PDF(s) first..." : "Ask a question about your PDFs..."}
 							className="flex-1 px-5 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
 							disabled={!sessionId}
 						/>
