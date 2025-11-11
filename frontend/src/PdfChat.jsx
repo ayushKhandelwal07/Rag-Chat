@@ -216,12 +216,12 @@ export default function PDFChatApp() {
 									<FileText className="text-red-500" size={16} />
 									<span className="text-gray-700 font-medium">{pdf.name}</span>
 									<span className="text-gray-500 text-xs">({pdf.size})</span>
-									<button
+									{/* <button
 										onClick={() => removePDF(pdf.id)}
 										className="text-gray-400 hover:text-red-500 transition-colors ml-1"
 									>
 										<X size={16} />
-									</button>
+									</button> */}
 								</div>
 							))}
 						</div>
